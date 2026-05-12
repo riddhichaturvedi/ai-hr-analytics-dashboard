@@ -4,6 +4,46 @@ import plotly.express as px
 
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import LabelEncoder
+
+ml_df = df.copy()
+
+# ---------------- FEATURE ENGINEERING ----------------
+features = ["JobSatisfaction", "WorkLifeBalance"]
+
+if "OverTime" in ml_df.columns:
+    ml_df["OverTime"] = ml_df["OverTime"].map({"Yes": 1, "No": 0})
+    features.append("OverTime")
+
+# Encode target
+if "Attrition" in ml_df.columns:
+    ml_df["Attrition"] = ml_df["Attrition"].map({"Yes": 1, "No": 0})
+
+# Drop missing values
+ml_df = ml_df.dropna(subset=features + ["Attrition"])
+
+X = ml_df[features]
+y = ml_df["Attrition"]
+
+# ---------------- TRAIN MODEL ----------------
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+model = LogisticRegression()
+model.fit(X_train, y_train)
+
+# ---------------- PREDICTIONS ----------------
+ml_df["Attrition_Probability"] = model.predict_proba(X)[:, 1]
+
+ml_df["RiskScore"] = ml_df["Attrition_Probability"] * 100
+
+ml_df["RiskLevel"] = ml_df["RiskScore"].apply(
+    lambda x: "High Risk" if x >= 60 else "Low Risk"
+)
+
 
 # ---------------- PAGE CONFIG ----------------
 st.set_page_config(
@@ -518,6 +558,19 @@ if "Attrition_Probability" in df.columns:
         ).head(10),
         use_container_width=True
     )
+
+st.subheader("ML-Based Attrition Prediction")
+
+st.dataframe(
+    ml_df[[
+        "JobSatisfaction",
+        "WorkLifeBalance",
+        "Attrition_Probability",
+        "RiskScore",
+        "RiskLevel"
+    ]].sort_values("RiskScore", ascending=False).head(20),
+    use_container_width=True
+)
 
 # ---------------- CHARTS ----------------
 c1, c2 = st.columns(2)
