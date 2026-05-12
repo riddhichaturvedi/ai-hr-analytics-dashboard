@@ -52,31 +52,43 @@ def train_model(data):
 model, feature_cols = train_model(df)
 
 # ---------------- PREDICTIONS ----------------
+# ---------------- PREDICTIONS ----------------
+ml_df = df.copy()
+
 if model is not None:
 
-    ml_df = df.copy()
-    ml_df_encoded = pd.get_dummies(ml_df, drop_first=True)
+    try:
+        ml_df_encoded = pd.get_dummies(ml_df, drop_first=True)
 
-    for col in feature_cols:
-        if col not in ml_df_encoded.columns:
-            ml_df_encoded[col] = 0
+        # ensure all required features exist
+        for col in feature_cols:
+            if col not in ml_df_encoded.columns:
+                ml_df_encoded[col] = 0
 
-    ml_df_encoded = ml_df_encoded[feature_cols]
+        ml_df_encoded = ml_df_encoded[feature_cols]
 
-    ml_df["Attrition_Probability"] = model.predict_proba(
-        ml_df_encoded
-    )[:, 1]
+        probs = model.predict_proba(ml_df_encoded)[:, 1]
 
-    ml_df["RiskScore"] = ml_df["Attrition_Probability"] * 100
+        ml_df["Attrition_Probability"] = probs
+        ml_df["RiskScore"] = probs * 100
 
-    def ml_risk(p):
-        if p > 0.7:
-            return "High Risk"
-        elif p > 0.4:
-            return "Medium Risk"
-        else:
-            return "Low Risk"
+        def ml_risk(p):
+            if p > 0.7:
+                return "High Risk"
+            elif p > 0.4:
+                return "Medium Risk"
+            else:
+                return "Low Risk"
 
-    ml_df["ML_Risk"] = ml_df["Attrition_Probability"].apply(ml_risk)
+        ml_df["ML_Risk"] = ml_df["Attrition_Probability"].apply(ml_risk)
 
-    df = ml_df
+    except Exception as e:
+        st.error(f"ML Error: {e}")
+
+        # SAFE FALLBACK (IMPORTANT)
+        ml_df["Attrition_Probability"] = 0
+        ml_df["RiskScore"] = 0
+        ml_df["ML_Risk"] = "Unknown"
+
+# always keep df usable
+df = ml_df
